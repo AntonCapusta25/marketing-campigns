@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Copy, Download, RefreshCw } from 'lucide-react';
+import { Sparkles, Copy, Download, RefreshCw, Share2 } from 'lucide-react';
 
 interface CampaignVariant {
   id: string;
@@ -30,6 +30,7 @@ function App() {
   const [variants, setVariants] = useState<CampaignVariant[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   const handleGenerate = async () => {
     if (!chefData.brandName || !chefData.cuisineType) {
@@ -201,7 +202,7 @@ function App() {
               Your Campaign Ideas
             </h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {variants.map((variant) => (
                 <div key={variant.id} className="bg-white rounded-2xl shadow-lg overflow-hidden">
                   {/* Image */}
@@ -274,9 +275,54 @@ function App() {
                 </div>
               ))}
             </div>
+
+            {/* Post to Social Media Button */}
+            <div className="flex justify-center">
+              <button
+                onClick={() => setShowModal(true)}
+                className="bg-[#F47A42] hover:bg-orange-600 text-white font-semibold py-4 px-8 rounded-lg transition-colors flex items-center space-x-2"
+              >
+                <Share2 className="w-5 h-5" />
+                <span>Post to Social Media</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative">
+            <button
+              onClick={() => setShowModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            <div className="text-center">
+              <div className="mb-4">
+                <Share2 className="w-16 h-16 text-[#F47A42] mx-auto" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'New Spirit, serif' }}>
+                Coming Soon!
+              </h3>
+              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                We're working hard on direct social media posting. Stay tuned for this exciting feature!
+              </p>
+              <button
+                onClick={() => setShowModal(false)}
+                className="bg-[#F47A42] hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
