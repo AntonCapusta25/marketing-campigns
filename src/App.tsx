@@ -112,16 +112,35 @@ function App() {
           const width = maxX - minX;
           const height = maxY - minY;
 
-          // Cover original text with background
-          ctx.fillStyle = 'white';
+          // Sample the background color from the image to blend better
+          const imageData = ctx.getImageData(minX + width / 2, minY + height / 2, 1, 1);
+          const [r, g, b] = imageData.data;
+          const brightness = (r + g + b) / 3;
+
+          // Use a semi-transparent background that matches the area
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.8)`;
           ctx.fillRect(minX, minY, width, height);
 
-          // Draw new text
-          ctx.fillStyle = 'black';
-          ctx.font = `${height * 0.7}px Arial`;
+          // Draw new text with color that contrasts with background
+          const textColor = brightness > 128 ? '#000000' : '#FFFFFF';
+          ctx.fillStyle = textColor;
+          ctx.font = `bold ${height * 0.75}px Arial, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
+
+          // Add subtle shadow for better readability
+          ctx.shadowColor = brightness > 128 ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)';
+          ctx.shadowBlur = 2;
+          ctx.shadowOffsetX = 1;
+          ctx.shadowOffsetY = 1;
+
           ctx.fillText(block.editedText, minX + width / 2, minY + height / 2);
+
+          // Reset shadow
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
         }
       });
     };
