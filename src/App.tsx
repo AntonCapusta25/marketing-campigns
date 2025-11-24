@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Copy, Download, RefreshCw, Share2, Edit2, X } from 'lucide-react';
+import { Sparkles, Copy, Download, RefreshCw, Share2, Edit2, X, Type } from 'lucide-react';
 
 interface CampaignVariant {
   id: string;
@@ -47,6 +47,38 @@ function App() {
   const [editingVariant, setEditingVariant] = useState<CampaignVariant | null>(null);
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+
+  // Text Editor State
+  const [showTextEditor, setShowTextEditor] = useState(false);
+  const [textBlocks, setTextBlocks] = useState<any[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
+  const [editorImage, setEditorImage] = useState<string | null>(null);
+
+  const handleScanImage = async (imageUrl: string) => {
+    setEditorImage(imageUrl);
+    setIsScanning(true);
+    setShowTextEditor(true);
+    setTextBlocks([]);
+
+    try {
+      // Call Python backend
+      const response = await fetch('http://localhost:8000/scan-base64', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageUrl })
+      });
+
+      if (!response.ok) throw new Error('Failed to scan image');
+
+      const data = await response.json();
+      setTextBlocks(data.text_blocks);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to scan image. Make sure the Python backend is running on port 8000.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   const handleEditClick = (variant: CampaignVariant) => {
     setEditingVariant(variant);
@@ -340,8 +372,16 @@ function App() {
                         <button
                           onClick={() => handleEditClick(variant)}
                           className="absolute top-4 left-4 bg-white/90 hover:bg-white p-2 rounded-lg shadow-lg transition-colors"
+                          title="Edit Image with AI"
                         >
                           <Edit2 className="w-5 h-5 text-gray-700" />
+                        </button>
+                        <button
+                          onClick={() => handleScanImage(variant.imageUrl!)}
+                          className="absolute top-4 left-16 bg-white/90 hover:bg-white p-2 rounded-lg shadow-lg transition-colors"
+                          title="Text Editor (Python Backend)"
+                        >
+                          <Type className="w-5 h-5 text-gray-700" />
                         </button>
                       </>
                     )}
@@ -496,6 +536,88 @@ function App() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Text Editor Modal */}
+      {showTextEditor && editorImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-8 relative h-[90vh] flex flex-col">
+            <button
+              onClick={() => setShowTextEditor(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <h3 className="text-2xl font-bold text-gray-900 mb-6" style={{ fontFamily: 'New Spirit, serif' }}>
+              Text Editor
+            </h3>
+
+            <div className="flex-1 relative bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+              <div className="relative inline-block">
+                <img
+                  src={editorImage}
+                  alt="Editor"
+                  className="max-h-[70vh] object-contain"
+                  id="editor-image"
+                />
+
+                {/* Text Overlays */}
+                {!isScanning && textBlocks.map((block, i) => {
+                  // Calculate relative position based on the displayed image size
+                  // This is a simplification; for production, we'd need robust coordinate mapping
+                  // Assuming the box coordinates match the image resolution
+
+                  const xs = block.box.map((p: any) => p[0]);
+                  const ys = block.box.map((p: any) => p[1]);
+                  const minX = Math.min(...xs);
+                  const minY = Math.min(...ys);
+                  const width = Math.max(...xs) - minX;
+                  const height = Math.max(...ys) - minY;
+
+                  // We need to scale these to the displayed image size if it's resized by CSS
+                  // For now, let's assume 1:1 or rely on the image being the container
+                  // A better approach is to render the boxes on top of the image using absolute positioning
+                  // relative to the image's natural size, then scale the container.
+                  // But for this prototype, let's just try to render them.
+
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        position: 'absolute',
+                        left: `${minX}px`,
+                        top: `${minY}px`,
+                        width: `${width}px`,
+                        height: `${height}px`,
+                        border: '2px solid #F47A42',
+                        backgroundColor: 'rgba(244, 122, 66, 0.2)',
+                        cursor: 'pointer'
+                      }}
+                      title={`Detected: ${block.text} (${Math.round(block.confidence * 100)}%)`}
+                      onClick={() => alert(`Edit text: ${block.text}`)}
+                    />
+                  );
+                })}
+
+                {isScanning && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <div className="text-center text-white">
+                      <RefreshCw className="w-12 h-12 animate-spin mx-auto mb-4" />
+                      <p className="text-lg font-semibold">Scanning for text...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-gray-500 text-center">
+              Note: Text detection requires the Python backend to be running.
+              <br />
+              Click on a highlighted box to edit (feature coming soon).
+            </p>
           </div>
         </div>
       )}
