@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Sparkles, Copy, Download, RefreshCw } from 'lucide-react';
 
 interface CampaignVariant {
