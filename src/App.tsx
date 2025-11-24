@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Copy, Download, RefreshCw, Share2 } from 'lucide-react';
+import { Sparkles, Copy, Download, RefreshCw, Share2, Edit2, X } from 'lucide-react';
 
 interface CampaignVariant {
   id: string;
@@ -9,6 +9,12 @@ interface CampaignVariant {
   imageUrl: string | null;
   status: 'generating' | 'completed' | 'error';
   error?: string;
+}
+
+interface ImagePreferences {
+  textPosition: string;
+  primaryColor: string;
+  atmosphere: string;
 }
 
 interface ChefData {
@@ -32,6 +38,58 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
+  // New state for preferences and editing
+  const [imagePreferences, setImagePreferences] = useState<ImagePreferences>({
+    textPosition: 'center',
+    primaryColor: '',
+    atmosphere: ''
+  });
+  const [editingVariant, setEditingVariant] = useState<CampaignVariant | null>(null);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleEditClick = (variant: CampaignVariant) => {
+    setEditingVariant(variant);
+    setEditPrompt('');
+  };
+
+  const handleSubmitEdit = async () => {
+    if (!editingVariant || !editPrompt) return;
+
+    setIsEditing(true);
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/super-api`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`
+        },
+        body: JSON.stringify({
+          action: 'edit',
+          image: editingVariant.imageUrl,
+          editPrompt
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to edit image');
+
+      const data = await response.json();
+
+      // Update the variant with the new image
+      setVariants(variants.map(v =>
+        v.id === editingVariant.id ? { ...v, imageUrl: data.imageUrl } : v
+      ));
+      setEditingVariant(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to edit image');
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!chefData.brandName || !chefData.cuisineType) {
       setError('Please fill in at least brand name and cuisine type');
@@ -54,6 +112,7 @@ function App() {
         },
         body: JSON.stringify({
           chefData,
+          imagePreferences,
           imageModel: 'recraft'
         })
       });
@@ -102,7 +161,7 @@ function App() {
           <h2 className="text-2xl font-bold text-gray-900 mb-6" style={{ fontFamily: 'New Spirit, serif' }}>
             Tell us about your brand
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -157,6 +216,54 @@ function App() {
             </div>
           </div>
 
+          {/* Image Preferences */}
+          <div className="mb-8 border-t border-gray-100 pt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4" style={{ fontFamily: 'New Spirit, serif' }}>
+              Image Style Preferences (Optional)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Text Position
+                </label>
+                <select
+                  value={imagePreferences.textPosition}
+                  onChange={(e) => setImagePreferences({ ...imagePreferences, textPosition: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="center">Center</option>
+                  <option value="top">Top</option>
+                  <option value="bottom">Bottom</option>
+                  <option value="no text">No Text</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Primary Color
+                </label>
+                <input
+                  type="text"
+                  value={imagePreferences.primaryColor}
+                  onChange={(e) => setImagePreferences({ ...imagePreferences, primaryColor: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="e.g., Pastel Pink"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Atmosphere
+                </label>
+                <input
+                  type="text"
+                  value={imagePreferences.atmosphere}
+                  onChange={(e) => setImagePreferences({ ...imagePreferences, atmosphere: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="e.g., Minimalist, Cozy"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Menu Highlights
@@ -201,7 +308,7 @@ function App() {
             <h2 className="text-3xl font-bold text-gray-900 mb-6" style={{ fontFamily: 'New Spirit, serif' }}>
               Your Campaign Ideas
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {variants.map((variant) => (
                 <div key={variant.id} className="bg-white rounded-2xl shadow-lg overflow-hidden">
@@ -229,6 +336,12 @@ function App() {
                           className="absolute top-4 right-4 bg-white/90 hover:bg-white p-2 rounded-lg shadow-lg transition-colors"
                         >
                           <Download className="w-5 h-5 text-gray-700" />
+                        </button>
+                        <button
+                          onClick={() => handleEditClick(variant)}
+                          className="absolute top-4 left-4 bg-white/90 hover:bg-white p-2 rounded-lg shadow-lg transition-colors"
+                        >
+                          <Edit2 className="w-5 h-5 text-gray-700" />
                         </button>
                       </>
                     )}
@@ -302,7 +415,7 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            
+
             <div className="text-center">
               <div className="mb-4">
                 <Share2 className="w-16 h-16 text-[#F47A42] mx-auto" />
@@ -319,6 +432,69 @@ function App() {
               >
                 Got it!
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingVariant && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative">
+            <button
+              onClick={() => setEditingVariant(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <h3 className="text-2xl font-bold text-gray-900 mb-6" style={{ fontFamily: 'New Spirit, serif' }}>
+              Edit Image
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden relative">
+                <img
+                  src={editingVariant.imageUrl!}
+                  alt="Original"
+                  className="w-full h-full object-cover"
+                />
+                {isEditing && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <RefreshCw className="w-8 h-8 text-white animate-spin" />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col justify-center">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  How should we change this image?
+                </label>
+                <textarea
+                  value={editPrompt}
+                  onChange={(e) => setEditPrompt(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent mb-4"
+                  placeholder="e.g., Make the background darker, add more garnish..."
+                />
+                <button
+                  onClick={handleSubmitEdit}
+                  disabled={isEditing || !editPrompt}
+                  className="w-full bg-[#F47A42] hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
+                >
+                  {isEditing ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      <span>Updating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      <span>Generate New Version</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
