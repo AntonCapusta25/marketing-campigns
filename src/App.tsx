@@ -45,9 +45,15 @@ function App() {
     setVariants([]);
 
     try {
-      const response = await fetch('/api/super-api', {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/super-api`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`
+        },
         body: JSON.stringify({
           chefData,
           imageModel
