@@ -1,15 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 @font-face {
   font-family: 'New Spirit';
   font-weight: 700;
   font-style: normal;
   font-display: swap;
-  /* You'll need to add the actual font file */
   src: local('New Spirit Bold');
 }
 
