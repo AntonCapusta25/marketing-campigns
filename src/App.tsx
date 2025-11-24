@@ -53,6 +53,8 @@ function App() {
   const [textBlocks, setTextBlocks] = useState<any[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [editorImage, setEditorImage] = useState<string | null>(null);
+  const [editingTextIndex, setEditingTextIndex] = useState<number | null>(null);
+  const [editedText, setEditedText] = useState('');
 
   const handleScanImage = async (imageUrl: string) => {
     setEditorImage(imageUrl);
@@ -566,10 +568,6 @@ function App() {
 
                 {/* Text Overlays */}
                 {!isScanning && textBlocks.map((block, i) => {
-                  // Calculate relative position based on the displayed image size
-                  // This is a simplification; for production, we'd need robust coordinate mapping
-                  // Assuming the box coordinates match the image resolution
-
                   const xs = block.box.map((p: any) => p[0]);
                   const ys = block.box.map((p: any) => p[1]);
                   const minX = Math.min(...xs);
@@ -577,11 +575,7 @@ function App() {
                   const width = Math.max(...xs) - minX;
                   const height = Math.max(...ys) - minY;
 
-                  // We need to scale these to the displayed image size if it's resized by CSS
-                  // For now, let's assume 1:1 or rely on the image being the container
-                  // A better approach is to render the boxes on top of the image using absolute positioning
-                  // relative to the image's natural size, then scale the container.
-                  // But for this prototype, let's just try to render them.
+                  const isEditing = editingTextIndex === i;
 
                   return (
                     <div
@@ -592,13 +586,48 @@ function App() {
                         top: `${minY}px`,
                         width: `${width}px`,
                         height: `${height}px`,
-                        border: '2px solid #F47A42',
-                        backgroundColor: 'rgba(244, 122, 66, 0.2)',
-                        cursor: 'pointer'
+                        border: isEditing ? '3px solid #F47A42' : '2px solid #F47A42',
+                        backgroundColor: isEditing ? 'rgba(244, 122, 66, 0.4)' : 'rgba(244, 122, 66, 0.2)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '4px'
                       }}
-                      title={`Detected: ${block.text} (${Math.round(block.confidence * 100)}%)`}
-                      onClick={() => alert(`Edit text: ${block.text}`)}
-                    />
+                      onClick={() => {
+                        setEditingTextIndex(i);
+                        setEditedText(block.text);
+                      }}
+                    >
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editedText}
+                          onChange={(e) => setEditedText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const newBlocks = [...textBlocks];
+                              newBlocks[i] = { ...newBlocks[i], text: editedText };
+                              setTextBlocks(newBlocks);
+                              setEditingTextIndex(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingTextIndex(null);
+                            }
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          autoFocus
+                          className="w-full px-2 py-1 text-sm border-0 bg-white rounded shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          style={{ fontSize: `${Math.min(height / 2, 16)}px` }}
+                        />
+                      ) : (
+                        <span
+                          className="text-xs font-semibold text-orange-700 text-center"
+                          style={{ fontSize: `${Math.min(height / 3, 12)}px` }}
+                        >
+                          {block.text}
+                        </span>
+                      )}
+                    </div>
                   );
                 })}
 
@@ -613,11 +642,34 @@ function App() {
               </div>
             </div>
 
-            <p className="mt-4 text-sm text-gray-500 text-center">
-              Note: Text detection requires the Python backend to be running.
-              <br />
-              Click on a highlighted box to edit (feature coming soon).
-            </p>
+            <div className="mt-4 space-y-2">
+              <p className="text-sm text-gray-500 text-center">
+                Click on any text box to edit. Press <kbd className="px-2 py-1 bg-gray-100 rounded">Enter</kbd> to save or <kbd className="px-2 py-1 bg-gray-100 rounded">Esc</kbd> to cancel.
+              </p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={() => {
+                    // Generate edit prompt from changed text
+                    const changes = textBlocks
+                      .map((block, i) => `Change "${textBlocks[i].text}" to "${block.text}"`)
+                      .join(', ');
+
+                    if (changes) {
+                      alert('Text editing complete! Use the AI Edit feature to regenerate the image with your changes.');
+                    }
+                  }}
+                  className="px-4 py-2 bg-[#F47A42] hover:bg-orange-600 text-white rounded-lg transition-colors text-sm font-medium"
+                >
+                  Apply Changes
+                </button>
+                <button
+                  onClick={() => setShowTextEditor(false)}
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
