@@ -55,6 +55,7 @@ function App() {
   const [editorImage, setEditorImage] = useState<string | null>(null);
   const [editingTextIndex, setEditingTextIndex] = useState<number | null>(null);
   const [editedText, setEditedText] = useState('');
+  const [canvasRef, setCanvasRef] = useState<HTMLCanvasElement | null>(null);
 
   const handleScanImage = async (imageUrl: string) => {
     setEditorImage(imageUrl);
@@ -73,13 +74,58 @@ function App() {
       if (!response.ok) throw new Error('Failed to scan image');
 
       const data = await response.json();
-      setTextBlocks(data.text_blocks);
+      setTextBlocks(data.text_blocks.map((block: any) => ({
+        ...block,
+        originalText: block.text,
+        editedText: block.text
+      })));
     } catch (err) {
       console.error(err);
       setError("Failed to scan image. Make sure the Python backend is running on port 8000.");
     } finally {
       setIsScanning(false);
     }
+  };
+
+  const redrawCanvas = () => {
+    if (!canvasRef || !editorImage) return;
+
+    const ctx = canvasRef.getContext('2d');
+    if (!ctx) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      canvasRef.width = img.width;
+      canvasRef.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      // Draw edited text over the image
+      textBlocks.forEach((block) => {
+        if (block.editedText !== block.originalText) {
+          const xs = block.box.map((p: any) => p[0]);
+          const ys = block.box.map((p: any) => p[1]);
+          const minX = Math.min(...xs);
+          const minY = Math.min(...ys);
+          const maxX = Math.max(...xs);
+          const maxY = Math.max(...ys);
+          const width = maxX - minX;
+          const height = maxY - minY;
+
+          // Cover original text with background
+          ctx.fillStyle = 'white';
+          ctx.fillRect(minX, minY, width, height);
+
+          // Draw new text
+          ctx.fillStyle = 'black';
+          ctx.font = `${height * 0.7}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(block.editedText, minX + width / 2, minY + height / 2);
+        }
+      });
+    };
+    img.src = editorImage;
   };
 
   const handleEditClick = (variant: CampaignVariant) => {
@@ -559,14 +605,26 @@ function App() {
 
             <div className="flex-1 relative bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
               <div className="relative inline-block">
-                <img
-                  src={editorImage}
-                  alt="Editor"
+                <canvas
+                  ref={(ref) => {
+                    setCanvasRef(ref);
+                    if (ref && editorImage && textBlocks.length > 0) {
+                      setTimeout(() => redrawCanvas(), 100);
+                    }
+                  }}
                   className="max-h-[70vh] object-contain"
-                  id="editor-image"
+                  style={{ display: isScanning ? 'none' : 'block' }}
                 />
 
-                {/* Text Overlays */}
+                {isScanning && (
+                  <img
+                    src={editorImage}
+                    alt="Editor"
+                    className="max-h-[70vh] object-contain"
+                  />
+                )}
+
+                {/* Interactive Text Boxes */}
                 {!isScanning && textBlocks.map((block, i) => {
                   const xs = block.box.map((p: any) => p[0]);
                   const ys = block.box.map((p: any) => p[1]);
@@ -586,20 +644,20 @@ function App() {
                         top: `${minY}px`,
                         width: `${width}px`,
                         height: `${height}px`,
-                        border: isEditing ? '3px solid #F47A42' : '2px solid #F47A42',
-                        backgroundColor: isEditing ? 'rgba(244, 122, 66, 0.4)' : 'rgba(244, 122, 66, 0.2)',
+                        border: isEditing ? '2px solid #F47A42' : '1px solid rgba(244, 122, 66, 0.5)',
+                        backgroundColor: isEditing ? 'rgba(244, 122, 66, 0.1)' : 'transparent',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: '4px'
+                        padding: '2px'
                       }}
                       onClick={() => {
                         setEditingTextIndex(i);
-                        setEditedText(block.text);
+                        setEditedText(block.editedText || block.text);
                       }}
                     >
-                      {isEditing ? (
+                      {isEditing && (
                         <input
                           type="text"
                           value={editedText}
@@ -607,25 +665,32 @@ function App() {
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               const newBlocks = [...textBlocks];
-                              newBlocks[i] = { ...newBlocks[i], text: editedText };
+                              newBlocks[i] = {
+                                ...newBlocks[i],
+                                editedText: editedText
+                              };
                               setTextBlocks(newBlocks);
                               setEditingTextIndex(null);
+                              setTimeout(() => redrawCanvas(), 10);
                             } else if (e.key === 'Escape') {
                               setEditingTextIndex(null);
                             }
                           }}
+                          onBlur={() => {
+                            const newBlocks = [...textBlocks];
+                            newBlocks[i] = {
+                              ...newBlocks[i],
+                              editedText: editedText
+                            };
+                            setTextBlocks(newBlocks);
+                            setEditingTextIndex(null);
+                            setTimeout(() => redrawCanvas(), 10);
+                          }}
                           onClick={(e) => e.stopPropagation()}
                           autoFocus
                           className="w-full px-2 py-1 text-sm border-0 bg-white rounded shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          style={{ fontSize: `${Math.min(height / 2, 16)}px` }}
+                          style={{ fontSize: `${Math.min(height / 2, 14)}px` }}
                         />
-                      ) : (
-                        <span
-                          className="text-xs font-semibold text-orange-700 text-center"
-                          style={{ fontSize: `${Math.min(height / 3, 12)}px` }}
-                        >
-                          {block.text}
-                        </span>
                       )}
                     </div>
                   );
@@ -644,23 +709,23 @@ function App() {
 
             <div className="mt-4 space-y-2">
               <p className="text-sm text-gray-500 text-center">
-                Click on any text box to edit. Press <kbd className="px-2 py-1 bg-gray-100 rounded">Enter</kbd> to save or <kbd className="px-2 py-1 bg-gray-100 rounded">Esc</kbd> to cancel.
+                Click on any text area to edit. Changes appear instantly! Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Enter</kbd> or click outside to save.
               </p>
               <div className="flex gap-2 justify-center">
                 <button
                   onClick={() => {
-                    // Generate edit prompt from changed text
-                    const changes = textBlocks
-                      .map((block, i) => `Change "${textBlocks[i].text}" to "${block.text}"`)
-                      .join(', ');
-
-                    if (changes) {
-                      alert('Text editing complete! Use the AI Edit feature to regenerate the image with your changes.');
+                    if (canvasRef) {
+                      const dataUrl = canvasRef.toDataURL('image/png');
+                      const link = document.createElement('a');
+                      link.download = 'edited-image.png';
+                      link.href = dataUrl;
+                      link.click();
                     }
                   }}
-                  className="px-4 py-2 bg-[#F47A42] hover:bg-orange-600 text-white rounded-lg transition-colors text-sm font-medium"
+                  className="px-4 py-2 bg-[#F47A42] hover:bg-orange-600 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
                 >
-                  Apply Changes
+                  <Download className="w-4 h-4" />
+                  Download Edited Image
                 </button>
                 <button
                   onClick={() => setShowTextEditor(false)}
