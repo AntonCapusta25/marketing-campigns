@@ -45,7 +45,7 @@ function App() {
     setVariants([]);
 
     try {
-      const response = await fetch('/api/generate-campaign', {
+      const response = await fetch('/api/super-api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
